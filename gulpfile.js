@@ -7,97 +7,67 @@ const gulpIf = require('gulp-if');
 const cssnano = require('gulp-cssnano');
 const imagemin = require('gulp-imagemin');
 const cache = require('gulp-cache');
-const runSequence = require('run-sequence');
 const del = require('del');
 
-const prefixScssPath = 'app/scss/**/*.scss';
-const prefixHtmlPath =  'app/*.html';
-const prefixJsPath = 'app/js/**/*.js';
-const prefixImagePath = 'app/images/**/*.+(png|jpg|gif|svg)';
-const prefixFontsPath = 'app/fonts/**/*';
+const paths = {
+    scss: 'app/scss/**/*.scss',
+    html: 'app/*.html',
+    js: 'app/js/**/*.js',
+    images: 'app/images/**/*.+(png|jpg|gif|svg)',
+    fonts: 'app/fonts/**/*'
+}
 
 /**
  * Compile sass to css
  */
-gulp.task('sass', function() {
-    return gulp.src(prefixScssPath)
-            .pipe(sass())
-            .pipe(gulp.dest('app/css'))
-            .pipe(browserSync.reload({
-                stream: true
-            }));
-});
+function style() {
+    return gulp.src(paths.scss)
+        .pipe(sass())
+        .pipe(gulp.dest('app/css'))
+        .pipe(browserSync.stream());
+}
 
-/**
- * Reload page when change data.
- */
-gulp.task('browserSync', function () {
+function browserSyncF() {
     browserSync.init({
-        server: {
-            baseDir: 'app'
-        }
-    })
-});
+        server: "app"
+    });
+}
 
-/**
- * Watch
- */
-gulp.task('watch', gulp.series('browserSync', 'sass'), function() {
-    gulp.watch(prefixScssPath, gulp.series('sass'));
-    gulp.watch(prefixHtmlPath, browserSync.reload);
-    gulp.watch(prefixJsPath, browserSync.reload)
-});
+function browserReload() {
+    return browserSync.reload;
+}
 
-/**
- * Minify
- */
-gulp.task('useref', function() {
-    return gulp.src(prefixHtmlPath)
+function wathFiles() {
+    gulp.watch(paths.scss, style);
+    gulp.watch(paths.html).on('change', browserReload());
+    gulp.watch(paths.js).on('change', browserReload());
+}
+
+function minifySoucre() {
+    return gulp.src(paths.html)
         .pipe(useref())
         .pipe(gulpIf('*.js', uglify()))
         .pipe(gulpIf('*.css', cssnano()))
         .pipe(gulp.dest('dist'));
-});
+}
 
-/**
- * Minify images
- */
-gulp.task('images', function() {
-    return gulp.src(prefixImagePath)
+function minifyImage() {
+    return gulp.src(paths.images)
         .pipe(cache(imagemin()))
         .pipe(gulp.dest('dist/images'));
-});
+}
 
-/**
- * Move fonts to dist/fonts
- */
-gulp.task('fonts', function() {
-    return gulp.src(prefixFontsPath)
+function moveFonts() {
+    return gulp.src(paths.fonts)
         .pipe(gulp.dest('dist/fonts'));
-});
+}
 
-/**
- * Delete file dist before build project.
- */
-gulp.task('clean', function(done) {
+function cleanBuild(done) {
     return del.sync('dist', done());
-});
+}
 
-/**
- * Build project.
- */
-gulp.task('build', gulp.series(`clean`, `sass`, `useref`, `images`, `fonts`), function (done) {
-    runSequence('clean',
-        gulp.series('sass', 'useref', 'images', 'fonts'),
-        done()
-    )
-});
+const watching = gulp.parallel(wathFiles, browserSyncF);
+const build = gulp.parallel(cleanBuild, style, minifySoucre, minifyImage, moveFonts)
 
-/**
- * Run task defaut
- */
-gulp.task('default', gulp.series(`sass`, `browserSync`, `watch`), function (done) {
-    runSequence(gulp.series('sass', 'browserSync', 'watch'),
-        done()
-    );
-})
+exports.default = watching;
+exports.build = build;
